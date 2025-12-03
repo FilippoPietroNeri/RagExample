@@ -36,21 +36,30 @@ llm = ChatGoogleGenerativeAI(
 @app.route("/", methods=["GET", "POST"])
 def index():
     response_text = ""
+    results_text = ""
     if request.method == "POST":
         query_text = request.form["query"]
 
         # Similarity search
         results = db.similarity_search_with_relevance_scores(query_text, k=3)
-        if results and results[0][1] >= 0.5:
+        if results:
+            # Mostra anteprima dei risultati trovati
+            results_text += "<strong>--- Risultati trovati ---</strong><br>"
+            for doc, score in results:
+                results_text += f"Score: {score:.3f} | {doc.page_content[:150]}...<br>"
+            results_text += "<strong>------------------------</strong><br><br>"
+
+            # Crea contesto e prompt per LLM
             context_text = "\n\n---\n\n".join([doc.page_content for doc, _ in results])
             prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
             prompt = prompt_template.format(context=context_text, question=query_text)
 
+            # Genera risposta
             response_text = llm.predict(prompt)
         else:
             response_text = "Mi dispiace, non ho trovato informazioni rilevanti."
 
-    return render_template("index.html", response=response_text)
+    return render_template("index.html", response=response_text, results=results_text)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
